@@ -719,7 +719,7 @@
           </button>
         </div>
         <div class="modal-body">
-          <p>{{ giftCardRedeemResult }}</p>
+          <p class="gift-card-result-text">{{ giftCardRedeemResult }}</p>
         </div>
         <div class="modal-footer">
           <button class="btn-submit" @click="showGiftCardResult = false">我知道了</button>
@@ -852,7 +852,7 @@ import {
 
 } from '@/api/user';
 
-import { formatDate } from '@/utils/formatters';
+import { formatDate, formatTraffic } from '@/utils/formatters';
 
 import {
 
@@ -1523,27 +1523,41 @@ const redeemGiftCard = async () => {
 
   try {
 
+    const previousUser = { ...userInfo.value };
+
     const response = await apiRedeemGiftCard(giftCardCode.value);
 
 
 
     if (response?.status === 'success' || response?.data === true) {
 
-      const data = response.data;
+      const data = response.data || {};
+      await fetchUserInfo(false);
+
+      const details = [];
+      const planName = data.plan?.name || data.plan_name || data.name || userInfo.value.plan?.name || userInfo.value.plan_name;
+      const previousPlanName = previousUser.plan?.name || previousUser.plan_name;
+      if (planName && planName !== previousPlanName) details.push(`套餐：${planName}`);
+      if (userInfo.value.transfer_enable !== undefined && userInfo.value.transfer_enable !== previousUser.transfer_enable) {
+        details.push(`套餐流量：${formatTraffic(userInfo.value.transfer_enable)}`);
+      }
+      if (userInfo.value.expired_at && userInfo.value.expired_at !== previousUser.expired_at) {
+        details.push(`有效期至：${formatDate(userInfo.value.expired_at)}`);
+      }
+      if (userInfo.value.balance !== undefined && userInfo.value.balance !== previousUser.balance) {
+        details.push(`账户余额：¥${userInfo.value.balance}`);
+      }
+
       giftCardResultTitle.value = '礼品卡兑换成功';
-      giftCardRedeemResult.value = response.message
-        || (typeof data === 'string' ? data : '')
-        || data?.plan_name
-        || data?.name
-        || '兑换成功，账户权益已更新。';
+      giftCardRedeemResult.value = [
+        response.message && response.message !== '兑换成功' ? response.message : '',
+        typeof data === 'string' ? data : '',
+        ...details
+      ].filter(Boolean).join('\n') || '兑换成功，账户权益已更新。';
       showGiftCardResult.value = true;
       success(t('profile.giftCardSuccess'));
 
       giftCardCode.value = '';
-
-
-      await fetchUserInfo(false);
-
     } else {
       throw new Error(response?.message || '礼品卡兑换失败');
 
@@ -3017,6 +3031,10 @@ body.dark-theme {
 
   }
 
+}
+
+.gift-card-result-text {
+  white-space: pre-line;
 }
 
 
